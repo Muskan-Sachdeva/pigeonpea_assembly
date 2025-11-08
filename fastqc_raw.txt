@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# FastQC for paired-end reads of 5 genotypes
+# FastQC for Illumina paired-end reads of 5 genotypes 
 
 # NSPP_3C
 fastqc NSPP_3C_R1.fastq.gz -o fastqc_NSPP_3C_R1_output/
