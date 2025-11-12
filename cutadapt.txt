@@ -1,0 +1,18 @@
+#!/bin/bash
+# Adapter sequences were identified from FastQC report
+# (Overrepresented sequences section) and correspond to Illumina TruSeq adapters.
+# The same Cutadapt parameters and adapter sequences were applied to all 5 genotypes.
+
+
+cutadapt \
+-a AGATCGGAAGAGCACACGTCTGAACTCCAGTCA \
+-A AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT \
+-o first_trimmed_results/trimmed_NS_PP87_R1.fastq.gz \
+-p first_trimmed_results/trimmed_NS_PP87_R2.fastq.gz \
+SO_12802_NS_PP87_R1.fastq.gz \
+SO_12802_NS_PP87_R2.fastq.gz \
+--minimum-length 30 \
+--quality-cutoff 20 \
+--trim-n \
+--overlap 15 \
+--cores=18
