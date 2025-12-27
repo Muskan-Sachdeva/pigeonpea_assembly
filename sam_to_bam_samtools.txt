@@ -1,0 +1,33 @@
+#Purpose: Convert a SAM file to sorted BAM and index it using samtools
+# Notes: Designed for Grid Engine cluster
+
+#!/bin/bash
+# Grid Engine options
+#$ -N bam_3C                   # Job name
+#$ -cwd                         # Run in current working directory
+#$ -l h_rt=04:00:00             # Runtime limit (adjust if needed)
+#$ -pe sharedmem 16             # Request 16 CPU cores
+#$ -l h_vmem=20G                # Memory per core
+#$ -j y                          # Join stdout and stderr
+#$ -o bam_3C.log                # Log file
+
+# Initialise environment
+. /etc/profile.d/modules.sh
+module load miniforge
+conda activate hifiasm          # Your conda environment
+
+# Input SAM file
+SAM_FILE=/exports/eddie/scratch/s2907620/minimap_syri_output/NSPP_3C_syri.sam
+
+# Output folder
+OUT_DIR=/exports/eddie/scratch/s2907620/minimap_syri_output/bam_files/NSPP_3C
+mkdir -p $OUT_DIR
+
+# Output BAM file
+BAM_FILE=$OUT_DIR/NSPP_3C_syri.bam
+
+# Convert SAM to sorted BAM and save in the output folder
+samtools view -bS $SAM_FILE | samtools sort -o $BAM_FILE
+
+# Index the BAM file in the same folder
+samtools index $BAM_FILE
