@@ -1,0 +1,2 @@
+hifiasm -t 32 --ont -o /exports/eddie/scratch/s2907620/SO_12802_NSPP_3C_barcode13.fastq.gz/NSPP_50_assembly.asm 
+-o /exports/eddie/scratch/s2907620/hifiasm_output
