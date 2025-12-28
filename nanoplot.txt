@@ -1,4 +1,0 @@
-# Assess Nanopore read quality and N50 using NanoPlot (https://github.com/wdecoster/NanoPlot, v1.43.0)
-NanoPlot --fastq ~/Documents/SO_12802_NSPP_87_barcode12.fastq \
-         --outdir ~/Documents/nanoplot_output_NS_87 \
-         --threads 8 --N50
