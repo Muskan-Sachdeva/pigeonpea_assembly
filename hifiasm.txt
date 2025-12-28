@@ -1,8 +1,0 @@
-#The same script is used for all five genotypes
-
-hifiasm -t 32 --ont -o /exports/eddie/scratch/s2907620/SO_12802_NSPP_3C_barcode13.fastq.gz/NSPP_50_assembly.asm 
--o /exports/eddie/scratch/s2907620/hifiasm_output
-
-
-#The output NSPP_3C_assembly.asm.bp.p_ctg.gfa is converted to fasta file using awk cmd for further mapping and downstream analysis.
-awk '/^S/{print ">"$2"\n"$3}' NSPP_3C_assembly.asm.bp.p_ctg.gfa > NSPP_50_assembly.fasta
