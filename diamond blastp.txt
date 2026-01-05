@@ -1,0 +1,63 @@
+diamond blastp \
+  -d swissprot.dmnd \
+  -q pigeonpea_proteins.fasta \
+  -o pigeonpea_vs_swissprot.tsv \
+  --sensitive \
+  -e 1e-5 \
+  -k 1 \
+  --outfmt 6 qseqid sseqid pident length evalue bitscore qcovhsp stitle \
+  --threads 16
+
+
+
+-d /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/uniprot_sprot.fasta \
+-q /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/braker_output/NSPP_3C_fixed_finally/braker.noStop.aa \
+-o /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/swiss_prot/NSPP_3C\NSPP_3C_sprot.tsv \
+--sensitive \
+-e 1e-5 \
+-k 1 \
+--outfmt 6 qseqid sseqid pident length evalue bitscore qcovhsp stitle \
+--threads 16
+
+
+#Download the protein database
+wget https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz
+
+#gunzip the .gz file
+gunzip uniprot_sprot.fasta.gz
+
+
+#Construct diamond database using fasta file 
+diamond makedb --in /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/uniprot_sprot.fasta -d /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/uniprot_sprot.dmnd
+
+
+#!/bin/bash
+# Grid Engine options
+#$ -N diamond_87
+#$ -cwd
+#$ -l h_rt=01:00:00
+#$ -pe sharedmem 16
+#$ -l h_vmem=32G
+#$ -j y
+#$ -o diamond_87.log
+
+# Initialise environment
+. /etc/profile.d/modules.sh
+module load miniforge
+conda activate diamond
+
+# Create output folder
+mkdir -p /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/swiss_prot/NSPP_87
+
+# Run DIAMOND blastp
+diamond blastp \
+-d /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/uniprot_sprot.dmnd \
+-q /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/braker_output/NSPP_87/braker.noStop.aa \
+-o /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/swiss_prot/NSPP_87/NSPP_87_sprot.tsv \
+--sensitive \
+-e 1e-5 \
+-k 1 \
+--outfmt 6 qseqid sseqid pident length evalue bitscore qcovhsp stitle \
+--threads 16
+
+
