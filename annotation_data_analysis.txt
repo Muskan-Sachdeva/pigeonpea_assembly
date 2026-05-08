@@ -1,0 +1,265 @@
+#########################final analysis file for annotation
+
+###extracting the ids which are unannotated in master file of NSPP_3C, and generating final master file with 100% annotation
+
+qlogin -l h_rt=08:00:00 -l h_rss=16G
+
+cd /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/master_files/NSPP_50
+
+module load R
+R
+
+library(dplyr)
+library(readr)
+library(tidyr)
+
+master_87 <- read_tsv("NSPP_87_master_annotated.tsv")
+
+##Calculating total proteins
+total <- nrow(master_87)
+total
+
+# annotated (those protein ids having final description in the master file)
+annotated <- master_87 %>%
+  dplyr::filter(!is.na(final_description)) %>%
+  nrow()
+
+annotated
+
+# optional(checking the unannotated gene ids in the master file)
+unannotated <- total - annotated
+
+total
+annotated
+unannotated
+
+
+
+########################################## finding the protein ids don't having any description from any database
+unannotated <- master_87 %>%
+  filter(
+    is.na(sprot_description),
+    is.na(legume_description),
+    is.na(nr_description),
+    is.na(Description),
+    is.na(ipr_ids),
+    is.na(final_description)
+  )
+
+n_unannotated <- nrow(unannotated)
+n_unannotated
+
+
+
+########Removing the unannotated gene ids from master file (using terminal for that) (This code will remove only those gene ids that does not have description from any database)
+
+# Pehle header copy karo
+
+head -n 1 NSPP_87_master_annotation.tsv > NSPP_87_master_annotated_only.tsv
+
+# Phir: IDs list me jo bhi IDs hain, unko exclude karke baaki sab lines append karo
+grep -F -v -f NSPP_87_unannotated_from_master_ids.txt NSPP_87_master_annotation.tsv \
+  | tail -n +2 >> NSPP_87_master_annotated_only.tsv
+
+
+##loading the annotated file having only annotated geneids
+
+master_87 <- read_tsv("NSPP_87_master_annotated_only.tsv")
+
+###############################################################
+##calculating how many sequences annotated by which database
+
+coverage <- tibble(
+  source = c("SwissProt","Legume","NR","eggNOG","InterPro"),
+  n_genes = c(
+    sum(!is.na(master_87$sprot_description)),
+    sum(!is.na(master_87$legume_description)),
+    sum(!is.na(master_87$nr_description)),
+    sum(!is.na(master_87$Description)),
+    sum(!is.na(master_87$ipr_ids))
+  )
+) %>%
+  mutate(percent = round(100 * n_genes / nrow(master_87), 1))
+
+
+print(coverage)
+
+
+#################Row‑wise source count banana
+
+master_sources <- master_87 %>%
+  mutate(
+    n_sources = rowSums(data.frame(
+      !is.na(sprot_description),
+      !is.na(legume_description),
+      !is.na(nr_description),
+      !is.na(Description),
+      !is.na(ipr_ids)
+    ))
+  )
+
+
+#######how many genes get annotated by more than one sources
+
+total_genes <- nrow(master_sources)
+
+n_ge_1 <- sum(master_sources$n_sources >= 1)
+n_ge_2 <- sum(master_sources$n_sources >= 2)
+n_ge_3 <- sum(master_sources$n_sources >= 3)
+
+pct_ge_1 <- round(100 * n_ge_1 / total_genes, 1)
+pct_ge_2 <- round(100 * n_ge_2 / total_genes, 1)
+pct_ge_3 <- round(100 * n_ge_3 / total_genes, 1)
+
+#####making a small summary table
+
+multi_source_summary <- tibble(
+  min_sources = c(">=1",">=2",">=3"),
+  n_genes     = c(n_ge_1, n_ge_2, n_ge_3),
+  percent     = c(pct_ge_1, pct_ge_2, pct_ge_3)
+)
+
+multi_source_summary
+
+
+
+
+###########################################################################################
+##finding the top 20 IPR domains and how many genes carry that
+
+
+ipr_counts <- master_87 %>%
+  filter(!is.na(ipr_descs)) %>%         # jinke paas InterPro desc hai
+  count(ipr_descs, sort = TRUE)        # har unique description ka count
+
+top20_ipr <- ipr_counts %>%
+  slice_max(n, n = 20)
+
+top20_ipr
+
+
+
+
+############################Code to find the top pfam domains present and how many genes carry that:
+
+ pfam_counts <- master_87 %>%
+  filter(!is.na(dom_desc)) %>%
+  count(dom_desc, sort = TRUE)
+
+top20_pfam <- pfam_counts %>%
+  slice_max(n, n = 20)
+
+top20_pfam
+
+##finding 11 to 20 enteries of pfam
+top20_pfam[11:20, ]
+
+
+
+######Finding how many of the genes have at least 1 GO term:
+
+
+# Agar final_GO me cleaned GO terms hain:
+n_total   <- nrow(master_87)
+n_with_GO <- sum(!is.na(master_87$final_GO) & master_87$final_GO != "")
+
+pct_with_GO <- round(100 * n_with_GO / n_total, 1)
+
+n_total
+n_with_GO
+pct_with_GO
+
+
+
+#######Finding how many of the genes have at least 1KEGG term
+
+n_total <- nrow(master_87)
+
+n_with_KEGG <- sum(!is.na(master_87$final_KEGG) & master_87$final_KEGG != "")
+pct_with_KEGG <- round(100 * n_with_KEGG / n_total, 1)
+
+n_total
+n_with_KEGG
+pct_with_KEGG
+
+
+
+##############Final description se best hits nikalna, ki sbse jyada kis organisms se hits are h
+
+
+final_species <- master_87 %>%
+  filter(!is.na(final_description)) %>%
+  mutate(
+    species = str_extract(final_description, "OS=[^=]+?OX="),
+    species = str_remove(species, "OS="),
+    species = str_remove(species, "OX="),
+    species = str_trim(species)
+  )
+
+species_counts <- final_species %>%
+  filter(!is.na(species), species != "") %>%
+  count(species, sort = TRUE)
+
+head(species_counts, 20)
+
+
+
+#######################################Legume vs non‑legume breakdown(How many genes are annotated by legumes and non-legume plants)
+
+legume_keywords <- c("cajanus","cicer","glycine","medicago",
+                     "phaseolus","pisum","vigna","lotus","glycyrrhiza")
+
+##step 1:  extracting species 
+
+library(dplyr)
+library(stringr)
+
+master_87 <- master_87 %>%
+  mutate(
+    species = str_extract(final_description, "OS=.*? OX=") %>%
+              str_remove("OS=") %>%
+              str_remove(" OX=")
+  )
+
+
+##quick check
+
+head(master_87$species, 20)
+
+
+####classifying legume vs non legume
+species_legume <- master_87 %>%
+  filter(!is.na(species), species != "") %>%
+  mutate(
+    species_lower = tolower(species),
+    is_legume = str_detect(
+      species_lower,
+      paste(legume_keywords, collapse = "|")
+    )
+  )
+
+
+####count unique genes
+legume_vs_non <- species_legume %>%
+  distinct(protein_id, is_legume) %>%
+  count(is_legume, name = "n_genes") %>%
+  mutate(percent = round(100 * n_genes / sum(n_genes), 1))
+
+legume_vs_non
+
+
+##quick check
+
+table(is.na(master_87$species))
+unique(master_87$species)[1:15]
+
+
+##checking how many genes get annotated by relaxed annotation
+
+wc -l NSPP_50_master_relaxed_annotation.tsv
+
+cut -f 1 NSPP_50_master_relaxed_annotation.tsv | sort -u | wc -l
+
+####checking separated files and master files, whether the number of genes annotated by each database is same or not
+
+
