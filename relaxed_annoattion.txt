@@ -1,0 +1,216 @@
+##############Run diamond using low e values and k value 10 , means for every unique id- diamond gives 10 hits, and from all the hits given for 1 unique id, we need to extract top 1 hits
+
+###########################################################################
+swissprot
+###########################################################################
+
+###checking how many ids present in master file
+
+grep -c "^>" /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/master_files/NSPP_70/NSPP_70_unannot_all_BRAKER_for_relaxed.fa
+
+
+###checking how many hits we got from swiss prot
+cut -f1 NSPP_87_sprot_relaxed.tsv | sort -u | wc -l
+
+
+##sorting the diamond output on basis of bit score , as multiple hits mile h for 1 gene id 
+sort -k1,1 -k6,6nr NSPP_87_sprot_relaxed.tsv > NSPP_87_sprot.sorted.tsv
+
+
+##after sorting, the first line is having highest bit score and we are extracting the ist line
+awk '!seen[$1]++' NSPP_87_sprot.sorted.tsv > NSPP_87_sprot_relaxed_best.tsv
+
+
+##quick check:
+
+wc -l NSPP_87_sprot.sorted.tsv
+
+wc -l NSPP_87_sprot_relaxed_best.tsv
+
+head NSPP_87_sprot_relaxed_best.tsv
+
+
+##to know how many are unique ids:
+cut -f1 NSPP_87_sprot_relaxed.tsv | sort -u | wc -l
+
+###adding headers to the sprot_relaxed.tsv file (headers means colnames)
+printf "sprot_qseqid\tsprot_sseqid\tsprot_pident\tsprot_length\tsprot_evalue\tsprot_bitscore\tsprot_qcovhsp\tsprot_stitle\n" \
+  | cat - NSPP_87_sprot_relaxed_best.tsv \
+  > NSPP_87_sprot_relaxed_best.with_header.tsv
+
+
+
+##replacing qseqid with proteinid in column names
+awk 'NR==1{$1="protein_id"; print; next} {print}' OFS='\t' \
+  NSPP_87_sprot_relaxed_best.with_header.tsv \
+  > NSPP_87_sprot_for_merge.tsv
+
+
+
+##Quick check to count the total protein ids
+tail -n +2 NSPP_87_sprot_for_merge.tsv | wc -l
+
+
+########################################################################
+legume database
+
+
+###checking how many hits we got from legume
+cut -f1 NSPP_87_legume_relaxed.tsv | sort -u | wc -l
+
+##sorting the diamond output on basis of bit score , as multiple hits mile h for 1 gene id
+sort -k1,1 -k6,6nr NSPP_87_legume_relaxed.tsv > NSPP_87_legume.sorted.tsv
+
+
+##after sorting, the first line is having highest bit score and we are extracting the ist line
+awk '!seen[$1]++' NSPP_87_legume.sorted.tsv > NSPP_87_legume_relaxed_best.tsv
+
+
+##quick check:
+
+wc -l NSPP_87_legume.sorted.tsv
+
+wc -l NSPP_87_legume_relaxed_best.tsv
+
+head NSPP_87_legume_relaxed_best.tsv
+
+
+##to know how many are unique ids:
+cut -f1 NSPP_87_legume_relaxed.tsv | sort -u | wc -l
+
+###adding headers to the legume_relaxed.tsv file (headers means colnames)
+printf "legume_qseqid\tlegume_sseqid\tlegume_pident\tlegume_length\tlegume_evalue\tlegume_bitscore\tlegume_qcovhsp\tlegume_stitle\n" | cat - NSPP_87_legume_relaxed_best.tsv > NSPP_87_legume_relaxed_best.with_header.tsv
+
+
+
+##replacing qseqid with proteinid in column names
+awk 'NR==1{$1="protein_id"; print; next} {print}' OFS='\t' NSPP_87_legume_relaxed_best.with_header.tsv > NSPP_87_legume_for_merge.tsv
+
+##Quick check to count the total protein ids
+tail -n +2 NSPP_87_legume_for_merge.tsv | wc -l
+
+
+
+#####################################################################################################
+##ncbi database
+
+
+###checking how many hits we got from legume
+cut -f1 NSPP_87_relaxed_nr.tsv | sort -u | wc -l
+
+##sorting the diamond output on basis of bit score , as multiple hits mile h for 1 gene id
+sort -k1,1 -k6,6nr NSPP_87_relaxed_nr.tsv > NSPP_87_nr.sorted.tsv
+
+
+##after sorting, the first line is having highest bit score and we are extracting the ist line
+awk '!seen[$1]++' NSPP_87_nr.sorted.tsv > NSPP_87_nr_relaxed_best.tsv
+
+awk -F'\t' '!seen[$1]++' NSPP_87_nr.sorted.tsv > NSPP_87_nr_relaxed_best_fixed.tsv
+
+
+##quick check:
+
+wc -l NSPP_87_nr.sorted.tsv
+
+wc -l NSPP_87_nr_relaxed_best.tsv
+
+head NSPP_87_nr_relaxed_best.tsv
+
+##to know how many are unique ids:
+cut -f1 NSPP_87_relaxed_nr.tsv | sort -u | wc -l
+
+###adding headers to the legume_relaxed.tsv file (headers means colnames) (t will add all the columns horizontally not vertically)
+
+printf "nr_qseqid\tnr_sseqid\tnr_pident\tnr_length\tnr_evalue\tnr_bitscore\tnr_qcovhsp\tnr_stitle\n" \
+  | cat - NSPP_87_nr_relaxed_best.tsv \
+  > NSPP_87_nr_relaxed_best.with_header.tsv
+
+
+
+##replacing qseqid with proteinid in column names
+awk 'NR==1{$1="protein_id"; print; next} {print}' OFS='\t' NSPP_87_nr_relaxed_best.with_header.tsv > NSPP_87_nr_for_merge.tsv
+
+##Quick check to count the total protein ids
+tail -n +2 NSPP_87_nr_for_merge.tsv | wc -l
+
+##################################################################################################################################
+
+################################merging all the diamond outputs 
+#########merging all the tables in a single master table: master_3C
+qlogin -l h_rt=08:00:00 -l h_rss=16G
+
+module load R
+R
+setwd("/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/relaxed_annotation/NSPP_50")
+
+list.files()
+
+library(dplyr)
+library(readr)
+library(tidyr)
+legume <- read_tsv("/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/relaxed_annotation/NSPP_87/legume_specific/NSPP_87_legume_for_merge.tsv")
+sprot <- read_tsv("/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/relaxed_annotation/NSPP_87/sprot/NSPP_87_sprot_for_merge.tsv")
+nr <- read_tsv("/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/relaxed_annotation/NSPP_87/ncbi/NSPP_87_nr_for_merge.tsv")
+
+
+
+
+all_prot <- tibble(protein_id = unique(c(
+  sprot$protein_id,
+  legume$protein_id,
+  nr$protein_id
+ )))
+
+master_relaxed_87 <- all_prot %>%
+  left_join(sprot,  by = "protein_id") %>%
+  left_join(legume, by = "protein_id") %>%
+  left_join(nr,     by = "protein_id") 
+ 
+##########check after merging shi se hua ya nhi:
+
+dim(master_relaxed_87)
+head(master_relaxed_87)
+
+
+#############adding master_50 me 2 nye descriptions ke columns
+###############Add best description columns
+master_relaxed_87 <- master_relaxed_87 %>%
+  mutate(
+    best_description = coalesce(
+      sprot_stitle,      # Priority 1
+      legume_stitle,     # Priority 2  
+      nr_stitle          # Priority 3
+    ),
+    best_source = case_when(
+      !is.na(sprot_stitle)  ~ "sprot_relaxed",
+      !is.na(legume_stitle) ~ "legume_relaxed", 
+      !is.na(nr_stitle)     ~ "nr_relaxed",
+      TRUE                  ~ NA_character_
+    )
+  )
+
+################################### Save as 2 columns added "best_description" and "best_source"
+write_tsv(master_relaxed_87, "NSPP_87_master_relaxed_annotation.tsv")
+
+##################################Quality check
+dim(master_relaxed_87)
+colnames(master_relaxed_87)
+
+##################################Preview new columns
+master_relaxed_87 %>% 
+  select(protein_id, best_description, best_source) %>% 
+  head(10)
+
+
+########################################################################################################################################################################################
+output file: NSPP_50_master_relaxed_annotation.tsv
+
+this file is having relaxed annotation along the column names and description column and source
+
+
+
+
+
+
+
+
