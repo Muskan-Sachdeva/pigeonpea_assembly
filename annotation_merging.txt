@@ -1,0 +1,314 @@
+##opening an interactive session
+qlogin -l h_rt=08:00:00 -l h_rss=16G
+
+
+
+
+###############################################
+##final steps followed after filtering of files
+
+cd /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/master_files
+
+module load R
+
+R
+
+setwd("NSPP_70")
+
+library(dplyr)
+library(readr)
+library(tidyr)
+library(stringr)
+
+
+
+##merging all the files in one using R
+
+legume  <- read_tsv("/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/legume_specific_diamond_output/NSPP_87/NSPP_87_legume_filtered.tsv", show_col_types = FALSE)
+
+sprot <- read_tsv("/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/swiss_prot/NSPP_87/NSPP_87_sprot_filtered.tsv", show_col_types = FALSE)
+
+nr <- read_tsv("/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/ncbi/NSPP_87/NSPP_87_nr_filtered.tsv", show_col_types = FALSE)
+
+ipr_clean <- read_tsv("/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/interproscan/interproscan-5.76-107.0/interproscan_results_87/braker.noStop.aa_ips_summary.tsv", show_col_types = FALSE)
+
+eggnog <- read_tsv("/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/eggnog_results/NSPP_87/NSPP_87_emapper_summary.tsv", comment = "#", show_col_types = FALSE)
+
+
+
+##merging all the files in single master file
+
+all_prot <- tibble(protein_id = unique(c(
+  sprot$protein_id,
+  legume$protein_id,
+  nr$protein_id,
+  ipr_clean$protein_id,
+  eggnog$protein_id
+)))
+
+master_87 <- all_prot %>%
+  left_join(sprot,  by = "protein_id") %>%
+  left_join(legume, by = "protein_id") %>%
+  left_join(nr,     by = "protein_id") %>%
+  left_join(eggnog, by = "protein_id") %>%
+  left_join(ipr_clean, by = "protein_id")
+
+
+####checking whether the merging occurs properly or not
+dim(master_87)
+head(master_87)
+
+##adding final description in master file
+
+master_87 <- master_87 %>%
+  mutate(
+    final_description = dplyr::coalesce(
+      sprot_description,
+      legume_description,
+      nr_description,
+      Description    # eggNOG description
+    ),
+    final_GO   = GOs,
+    final_KEGG = KEGG_ko
+  )
+
+
+write_tsv(master_87, "NSPP_87_master_annotation.tsv")
+###########Quick quality check:
+
+dim(master_87)
+colnames(master_87)
+master_87 %>% select(protein_id, final_description, final_GO,
+final_KEGG) %>% head()
+
+
+###To know how many are unannotated and annotated in the master file
+# total proteins
+total <- nrow(master_87)
+
+# annotated (jinke paas final_description hai)
+annotated <- master_87 %>%
+  dplyr::filter(!is.na(final_description)) %>%
+  nrow()
+
+# optional: unannotated check
+unannotated <- total - annotated
+
+total
+annotated
+unannotated
+
+
+## To know how many are annotated in master_71 file
+library(dplyr)
+
+unannotated <- master_87 %>%
+  filter(
+    is.na(sprot_description),
+    is.na(legume_description),
+    is.na(nr_description),
+    is.na(Description),
+    is.na(ipr_ids),
+    is.na(final_description)
+  )
+
+n_unannotated <- nrow(unannotated)
+n_unannotated
+
+
+## To extract the unannotated ids from the master file
+##“Proteins lacking annotation evidence from Swiss-Prot, legume databases, NR, eggNOG, and InterPro were classified as completely unannotated and extracted for further analysis.”
+
+library(dplyr)
+library(readr)
+
+
+##reading master file in R
+master_file <- read_tsv("NSPP_87_master_annotation.tsv",show_col_types = FALSE)
+
+
+##
+master_file <- master_file %>%
+  mutate(
+    has_sprot  = !is.na(sprot_subject_id)  & sprot_subject_id  != "",
+    has_legume = !is.na(legume_subject_id) & legume_subject_id != "",
+    has_ncbi   = !is.na(nr_subject_id)     & nr_subject_id     != "",
+    has_emap   = !is.na(Description)       & Description       != "",
+    has_ipr    = !is.na(ipr_ids)           & ipr_ids           != "",
+    has_any_db = has_sprot | has_legume | has_ncbi | has_emap | has_ipr
+  )
+
+
+##unannotated genes ids extract in new separate file
+
+unannot_ids <- master_file %>%
+  filter(!has_any_db) %>%
+  pull(protein_id) %>%
+  unique()
+
+length(unannot_ids)   # yahan ~2510 aana chahiye
+
+write_lines(unannot_ids, "NSPP_87_unannotatedd_from_master_ids.txt")
+
+
+######################################extracting all the ids from braker.noStop.aa output
+
+cd /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/braker_output/NSPP_87
+
+grep ">" braker.noStop.aa | sed 's/^>//' > braker_ids.txt
+
+
+######################### R me set difference nikalna
+
+library(readr)
+library(dplyr)
+
+# 1) Master ids (set B)
+master_ids <- master_file$protein_id %>% unique()
+
+# 2) BRAKER ids (set A)
+braker_ids <- read_lines("/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/braker_output/NSPP_87/braker_ids.txt")
+
+length(braker_ids)   # 49243
+length(master_ids)   # 45718
+
+# 3) Jo BRAKER me hain, par master me nahi:
+only_in_braker <- setdiff(braker_ids, master_ids)
+
+length(only_in_braker)   # 3525
+
+# 4) File me save karo
+write_lines(only_in_braker, "NSPP_87_extra_from_BRAKER_not_in_master_ids.txt")
+
+
+####################################################################################################################################################
+##merging the files jo unannotated h master file me and jo present nhi h braker ke master file me :
+
+file 1: NSPP_70_unannotated_from_master_ids.txt ## ids jo master files me unannotated h
+file 2: NSPP_70_extra_from_BRAKER_not_in_master_ids.txt ## jo ids braker me h but master file me nhi
+
+library(readr)
+
+# 1) Dono files se IDs read karo
+ids_unannot_master <- read_lines("NSPP_87_unannotatedd_from_master_ids.txt")
+ids_extra_braker   <- read_lines("NSPP_87_extra_from_BRAKER_not_in_master_ids.txt")
+
+length(ids_unannot_master)  # ~2510
+length(ids_extra_braker)    # ~3525
+
+# 2) Union = dono ka merged set, duplicates automatically hata dega
+all_unannot_for_relaxed <- union(ids_unannot_master, ids_extra_braker)
+length(all_unannot_for_relaxed)
+
+# 3) Nayi file me likho
+write_lines(all_unannot_for_relaxed,
+            "NSPP_87_unannot_all_BRAKER_for_relaxed_ids.txt")
+
+
+################################################NSPP_3C_unannot_all_BRAKER_for_relaxed_ids.txt  :  final file going to use for relaxed annotation
+
+###################################################################################################################################################
+
+## now extracting the fasta seuences for all these ids form braker.noStop.aa using seqtk
+
+conda activate assembly
+module load miniforge
+conda install -c bioconda seqtk
+
+seqtk subseq /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/braker_output/NSPP_87/braker.noStop.aa /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/master_files/NSPP_87/NSPP_87_unannot_all_BRAKER_for_relaxed_ids.txt \
+  > NSPP_87_unannot_all_BRAKER_for_relaxed.fa
+
+###checking fasta is correct or not
+wc -l NSPP_87_unannot_all_BRAKER_for_relaxed_ids.txt
+grep -c "^>" NSPP_87_unannot_all_BRAKER_for_relaxed.fa
+
+#################now do relaxed diamond run
+
+
+
+########################legume
+#!/bin/bash
+# Grid Engine options
+#$ -N leg_relaxed_87
+#$ -cwd
+#$ -l h_rt=01:00:00
+#$ -pe sharedmem 16
+#$ -l h_vmem=32G
+#$ -j y
+#$ -o leg_relaxed_87.log
+
+# Initialise environment
+. /etc/profile.d/modules.sh
+module load miniforge
+conda activate diamond
+
+
+# Run DIAMOND blastp
+diamond blastp \
+-d /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/legume_specific.dmnd \
+-q /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/master_files/NSPP_87/NSPP_87_unannot_all_BRAKER_for_relaxed.fa \
+-o /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/relaxed_annotation/NSPP_87/legume/NSPP_87_legume_relaxed.tsv \
+--sensitive \
+-e 1e-3 \
+-k 10 \
+--outfmt 6 qseqid sseqid pident length evalue bitscore qcovhsp stitle \
+--threads 16
+
+
+################################ncbi
+
+#!/bin/bash
+# Grid Engine options
+#$ -N ncbi_relaxed_87
+#$ -cwd
+#$ -l h_rt=24:00:00
+#$ -pe sharedmem 16
+#$ -l h_vmem=32G
+#$ -j y
+#$ -o ncbi_relaxed_87.log
+
+# Initialise environment
+. /etc/profile.d/modules.sh
+module load miniforge
+conda activate diamond
+
+# Run DIAMOND blastp
+diamond blastp \
+-d /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/ncbi_nb/nr.dmnd \
+-q /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/master_files/NSPP_87/NSPP_87_unannot_all_BRAKER_for_relaxed.fa \
+-o /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/relaxed_annotation/NSPP_87/ncbi/NSPP_87_relaxed_nr.tsv \
+--sensitive \
+-e 1e-3 \
+-k 10 \
+--outfmt 6 qseqid sseqid pident length evalue bitscore qcovhsp stitle \
+--threads 16
+
+#!/bin/bash
+# Grid Engine options
+#$ -N diamond_relax_87
+#$ -cwd
+#$ -l h_rt=24:00:00
+#$ -pe sharedmem 16
+#$ -l h_vmem=32G
+#$ -j y
+#$ -o diamond_relax_87.log
+
+# Initialise environment
+. /etc/profile.d/modules.sh
+module load miniforge
+conda activate diamond
+
+diamond blastp \
+-d /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/uniprot_sprot.dmnd \
+-q /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/master_files/NSPP_87/NSPP_87_unannot_all_BRAKER_for_relaxed.fa \
+-o /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/diamond/relaxed_annotation/NSPP_87/sprot/NSPP_87_sprot_relaxed.tsv \
+--sensitive \
+-e 1e-3 \
+-k 10 \
+--outfmt 6 qseqid sseqid pident length evalue bitscore qcovhsp stitle \
+--threads 16
+
+
+
+
+
