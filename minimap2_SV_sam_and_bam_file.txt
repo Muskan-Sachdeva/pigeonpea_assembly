@@ -1,0 +1,74 @@
+
+#######################################################################################################
+Script to do the alignment of long ONT data with reference to find the structural variants
+
+## step 1 alignment of raw reads to the reference using minimap2 and samtools
+
+#!/bin/bash
+# Grid Engine options
+#$ -N minimap2_87                  # Job name
+#$ -cwd                             # Run in current working directory
+#$ -l h_rt=24:00:00                 # Runtime limit of 24 hours
+#$ -pe sharedmem 16                 # Request 16 CPU cores
+#$ -l h_vmem=12G                    # Memory per core (16 × 12 GB = 192 GB total)
+#$ -j y                               # Join stdout and stderr
+#$ -o minimap_87_sam.log                  # Log file
+
+
+
+# Initialise environment
+. /etc/profile.d/modules.sh
+module load miniforge
+conda activate assembly
+
+Reference=/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/reference/Final_Gapfilled_PPgenome_8FLcontigs.fa
+Reads=/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/ONT/SO_12802_NSPP_87_barcode14.fastq.gz 
+OUTSAM=/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/minimap/NSPP_87/NSPP_87.sam
+
+minimap2 -ax map-ont $Reference $Reads > $OUTSAM
+
+
+##########################################converted sam file to sorted bam file
+
+#!/bin/bash
+# Grid Engine options
+#$ -N sam_to_bam_71                  # Job name
+#$ -cwd                             # Run in current working directory
+#$ -l h_rt=24:00:00                 # Runtime limit of 24 hours
+#$ -pe sharedmem 16                 # Request 16 CPU cores
+#$ -l h_vmem=12G                    # Memory per core (16 × 12 GB = 192 GB total)
+#$ -j y                               # Join stdout and stderr
+#$ -o samtools_71_bam.log                  # Log file
+
+
+
+# Initialise environment
+. /etc/profile.d/modules.sh
+module load miniforge
+conda activate assembly
+
+
+
+samtools view -bS /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/minimap/NSPP_71/NSPP_71.sam -o /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/minimap/NSPP_71/NSPP_71.bam
+
+# 2. Sort the BAM file
+samtools sort /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/minimap/NSPP_71/NSPP_71.bam -o /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/minimap/NSPP_71/NSPP_71_sorted_output.bam
+
+
+############################################################################################################################################################################################
+
+#INdex the sorted bam file
+samtools index sorted.bam
+
+############################################################################################################################################################################################
+#To know how much reads get mapped and how mach note(calculating the mapping coverage)
+
+samtools flagstat mapped_reads.bam
+
+samtools stats mapped_reads.bam > stats.txt
+
+ 
+Percent mapped= reads mapped /total reads * 100
+
+
+
