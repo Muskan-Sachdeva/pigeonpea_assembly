@@ -1,0 +1,123 @@
+####################################################################################################################
+#########Phylogenetic tree developement############################
+
+ ##Step1: Orthofinder run
+#!/bin/bash
+# Grid Engine options
+#$ -N orthofinder
+#$ -cwd
+#$ -l h_rt=08:00:00
+#$ -pe sharedmem 32
+#$ -l h_vmem=12G
+#$ -j y
+#$ -o orthofinder.log
+
+# Initialise environment
+. /etc/profile.d/modules.sh
+module load miniforge
+conda activate /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/envs/orthoEnv
+cd /home/s2907620/pigeonpea_project/phylogenetic_tree
+
+orthofinder -f /home/s2907620/pigeonpea_project/phylogenetic_tree/orthofinder_proteomes -t 32 -a 16
+
+########################################################################################
+####Step2: MAFFT alignment
+
+cd /home/s2907620/pigeonpea_project/phylogenetic_tree/orthofinder_proteomes/OrthoFinder/Results_Jul26/Single_Copy_Orthologue_Sequences/
+mkdir -p /home/s2907620/pigeonpea_project/phylogenetic_tree/aligned_orthogroups
+
+for f in *.fa; do
+    base=$(basename "$f" .fa)
+    mafft --auto "$f" > /home/s2907620/pigeonpea_project/phylogenetic_tree/aligned_orthogroups/"${base}_aligned.fa"
+done
+
+#####################################################################################
+##Step3: Alignment trimming using TrimAl
+
+#!/bin/bash
+# ============================================================
+# trimAl trimming script for 270 single-copy orthogroup alignments
+# Purpose: Remove poorly aligned/noisy columns before concatenation
+#
+# Parameters used:
+#   -in            : input MAFFT-aligned FASTA file
+#   -out           : output trimmed alignment file
+#   -automated1    : automated heuristic mode — trimAl decides
+#                    best trimming strategy based on gap
+#                    distribution + conservation pattern.
+#                    Standard/default choice in phylogenomics
+#                    papers, no manual threshold tuning needed.
+# ============================================================
+
+INPUT_DIR="/home/s2907620/pigeonpea_project/phylogenetic_tree/mafft_alignment"
+OUTPUT_DIR="/home/s2907620/pigeonpea_project/phylogenetic_tree/trimmed_orthogroups"
+mkdir -p "$OUTPUT_DIR"
+
+cd "$INPUT_DIR"
+
+for f in *_aligned.fa; do
+    base=$(basename "$f" _aligned.fa)
+    trimal -in "$f" -out "$OUTPUT_DIR/${base}_trimmed.fa" -automated1
+done
+
+echo "Trimming complete. Trimmed files saved in: $OUTPUT_DIR"
+ls "$OUTPUT_DIR" | wc -l
+
+
+################################################################################
+##Step3: Developing supermatrix using AMAS
+
+conda activate /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/envs/orthoEnv
+python -m amas.AMAS –help
+
+##supermatrix
+cd /home/s2907620/pigeonpea_project/phylogenetic_tree/trimmed_orthogroups/
+python -m amas.AMAS concat -i *_trimmed.fa -f fasta -d aa -t supermatrix.fasta -p partition.txt
+
+##checking the supermatrix header numbers
+grep -c ">" supermatrix_v2.fasta # (output should equal to number of samples)
+## summary file of the supermatrix
+python -m amas.AMAS summary -f fasta -d aa -i supermatrix_v2.fasta
+
+
+######################################################################################
+####Step4: Running IQTREE
+cat > iqtree_job.sh << 'EOF'
+#!/bin/bash
+#$ -N iqtree_pigeonpea
+#$ -cwd
+#$ -l h_rt=24:00:00
+#$ -pe sharedmem 16
+#$ -l h_vmem=8G
+#$ -j y
+#$ -o iqtree.log
+
+. /etc/profile.d/modules.sh
+module load miniforge
+conda activate /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/envs/orthoEnv
+
+cd /home/s2907620/pigeonpea_project/phylogenetic_tree/trimmed_orthogroups_v2/
+
+iqtree2 -s supermatrix_v2.fasta \
+    -p partition_v2_fixed.txt \
+    -m MFP \
+    -bb 1000 \
+    -alrt 1000 \
+    -T AUTO \
+    -ntmax 16
+EOF
+
+# Key outputs:
+# supermatrix.fasta.treefile  -> final ML species tree (Newick, with support values)
+# supermatrix.fasta.iqtree    -> detailed report (best-fit models, log-likelihood)
+# supermatrix.fasta.contree   -> bootstrap consensus tree
+
+
+# ----------------------------------------------------------------------------
+# STEP 6: Tree visualization
+# ----------------------------------------------------------------------------
+# The resulting .treefile was visualized and annotated using the
+# Interactive Tree Of Life (iTOL) v6 web server
+# ============================================================================
+# END OF PIPELINE
+# ============================================================================
