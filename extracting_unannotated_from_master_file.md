@@ -1,4 +1,4 @@
-\##master file se 2510 ids nikalna jo unannotated h
+################extracting the unannotated gene ids from the master file
 
 
 
