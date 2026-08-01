@@ -1,0 +1,148 @@
+########################################
+# KMC JOB SCRIPT FOR k=21 K-MER HISTOGRAM
+# Illumina paired-end + ONT reads
+########################################
+
+#!/bin/bash
+#$ -N KMC_k21_Array
+#$ -l h_rt=02:00:00
+#$ -l h_vmem=32G
+#$ -pe sharedmem 12
+#$ -P roslin_HighlanderLab
+#$ -cwd
+#$ -t 1-10
+
+
+# -----------------------------
+# 1. Environment setup
+# -----------------------------
+
+. /etc/profile.d/modules.sh
+module load miniforge
+
+conda activate /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/envs/KMC
+
+
+# -----------------------------
+# 2. Read array file
+# -----------------------------
+
+ARRAY_FILE="/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/KMC/KMC_21_path.txt"
+
+LINE=$(sed -n "${SGE_TASK_ID}p" "$ARRAY_FILE")
+
+
+# -----------------------------
+# 3. Parse input
+# -----------------------------
+
+read -r GTYPE TYPE R1 R2 <<< "$LINE"
+
+KVAL=21
+
+
+echo "=============================="
+echo "Genotype : $GTYPE"
+echo "Type     : $TYPE"
+echo "K-mer    : $KVAL"
+echo "R1/Input : $R1"
+echo "R2       : $R2"
+echo "=============================="
+
+
+# -----------------------------
+# 4. Output directory
+# -----------------------------
+
+BASE_DIR="/exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/KMC"
+
+TARGET_DIR="${BASE_DIR}/${GTYPE}/${TYPE}/k${KVAL}"
+
+mkdir -p "$TARGET_DIR"
+
+cd "$TARGET_DIR" || exit 1
+
+
+# -----------------------------
+# 5. Temporary directory
+# -----------------------------
+
+mkdir -p kmc_tmp_${KVAL}
+
+
+# -----------------------------
+# 6. Run KMC
+# -----------------------------
+
+echo "Starting KMC..."
+
+
+if [ "$TYPE" == "Illumina" ]; then
+
+    echo "Running paired-end Illumina data"
+
+    kmc \
+    -v \
+    -k${KVAL} \
+    -fq \
+    -m30 \
+    -t12 \
+    "$R1" "$R2" \
+    ${GTYPE}_${TYPE}_k${KVAL}_output \
+    kmc_tmp_${KVAL}
+
+
+elif [ "$TYPE" == "ONT" ]; then
+
+    echo "Running ONT single-end data"
+
+    kmc \
+    -v \
+    -k${KVAL} \
+    -fq \
+    -m30 \
+    -t12 \
+    "$R1" \
+    ${GTYPE}_${TYPE}_k${KVAL}_output \
+    kmc_tmp_${KVAL}
+
+else
+
+    echo "Unknown data type: $TYPE"
+    exit 1
+
+fi
+
+
+# -----------------------------
+# 7. Generate histogram
+# -----------------------------
+
+echo "Generating histogram"
+
+
+kmc_tools transform \
+${GTYPE}_${TYPE}_k${KVAL}_output \
+histogram \
+${GTYPE}_${TYPE}_k${KVAL}_histogram.txt
+
+
+echo "================================="
+echo "Job completed successfully"
+echo "Task ID: $SGE_TASK_ID"
+echo "================================="
+
+###################################################################################
+########################ARRAY_FILE#################################################
+
+ NSPP_3C Illumina /path/NSPP_3C_R1.fastq.gz /path/NSPP_3C_R2.fastq.gz
+NSPP_3C ONT /path/SO_12802_NSPP_3C_barcode13.fastq.gz
+NSPP_50 Illumina /path/NSPP_50_R1.fastq.gz /path/NSPP_50_R2.fastq.gz
+NSPP_50 ONT /path/SO_12802_NSPP_50_barcode15.fastq.gz
+NSPP_70 Illumina /path/NSPP_70_R1.fastq.gz /path/NSPP_70_R2.fastq.gz
+NSPP_70 ONT /path/SO_12802_NSPP_70_barcode11.fastq.gz
+NSPP_71 Illumina /path/NSPP_71_R1.fastq.gz /path/NSPP_71_R2.fastq.gz
+NSPP_71 ONT /path/SO_12802_NSPP_71_barcode12.fastq.gz
+NSPP_87 Illumina /path/NSPP_87_R1.fastq.gz /path/NSPP_87_R2.fastq.gz
+NSPP_87 ONT /path/SO_12802_NSPP_87_barcode14.fastq.gz
+
