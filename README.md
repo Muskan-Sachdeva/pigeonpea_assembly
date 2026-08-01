@@ -1,0 +1,3 @@
+This repository contains the scripts and computational workflows used for the genome assembly, quality assessment, structural annotation, functional annotation, and comparative genomic analysis of pigeonpea (Cajanus cajan (L.)) genotypes.
+
+The study generated high-quality genome assemblies using a hybrid sequencing approach combining Oxford Nanopore Technologies (ONT) long-read sequencing and Illumina short-read sequencing. The assembled genomes were further subjected to genome annotation, structural variation analysis, comparative genomics, and functional enrichment analysis to identify genomic differences among pigeonpea genotypes.
