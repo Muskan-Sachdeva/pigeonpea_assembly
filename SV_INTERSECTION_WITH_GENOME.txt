@@ -1,0 +1,109 @@
+############################################INTERSECTING THE STRUCTURAL VARIATIONS WITH THE GENOMIC REGIONS TO FIND THE NUMBER OF SV'S AFFECTING DIFFERENT REGIONS OF GENOME
+##INPUT FILES FOR THIS STUDY
+##SV BED
+
+##genome.txt file
+cut -f1,2 /home/s2907620/pigeonpea_project/final_assembled_files/ragtag_final_submission/MC50_genome.fasta.fai > genome_MC50.txt
+cat genome_MC50.txt
+
+##CONVERT SV VCF FILE TO BED FILE
+bcftools query -f '%CHROM\t%POS0\t%END\t%ID\n' SV.vcf > SV.bed
+
+##GFF3 FILE
+# IDENTIFYING WHICH FEATURES ARE PRESENT IN THE OUTPUT FILE
+cut -f3 HY3C.gff3 | sort | uniq -c
+
+# Extracting gene features
+## 1.	Gene extraction
+awk '$3=="gene"' HY3C.gff3 \
+| awk 'BEGIN{OFS="\t"}{print $1,$4-1,$5,$9}' \
+> genes.bed
+
+## 2.	EXON EXTRACTION
+
+awk '$3=="exon"' HY3C.gff3 \
+| awk 'BEGIN{OFS="\t"}{print $1,$4-1,$5,$9}' \
+> exons.bed
+
+## 3.	INTRON EXTRACTION
+              awk '$3=="intron"' HY3C.gff3 \
+              | awk 'BEGIN{OFS="\t"}{print $1,$4-1,$5,$9}' \
+            > introns.bed
+
+##DEVELOPING GENOME.TXT FILE FROM .FAI FILE
+## This file has the chromosome name and the chromosome size
+cut -f1,2 HY3C_genome.fasta.fai > genome.txt
+
+##CREATING A STRAND-AWARE BED FROM GFF FILE
+awk '$3=="gene"{
+OFS="\t";
+print $1,$4-1,$5,$9,".",$7
+}' HY3C.gff3 > genes_strand.bed
+
+##CREATING UPSTREAM AND DOWNSTREAM FLANKING REGIONS
+# using genes.bed and genome.txt to get that
+# upstream
+bedtools flank \
+-i /home/s2907620/pigeonpea_project/braker_output/NSPP_3C/genes_strand.bed \
+-g /home/s2907620/pigeonpea_project/final_assembled_files/ragtag_final_submission/HY3C_genome.txt \
+-l 2000 \
+-r 0 \
+-s \
+> upstream2kb.bed
+
+## downstream
+bedtools flank \
+-i /home/s2907620/pigeonpea_project/braker_output/NSPP_3C /genes_strand.bed \
+-g /home/s2907620/pigeonpea_project/final_assembled_files/ragtag_final_submission/HY3C_genome.txt \
+-l 0 \
+-r 2000 \
+-s \
+> downstream2kb.bed
+
+##CREATING INTERGENIC REGION
+##CREATING SORTED BED FILES
+cut -f1-3 genes_strand.bed | sort -k1,1 -k2,2n > genes_sorted.bed
+##CREATING INTERGENIC FILE
+##sorted the file based on chromosome numbers (as genome.txt file has chr 1 than at last have chr0, but bed file is opposite), so we are using this cmd 
+bedtools sort \
+-i /home/s2907620/pigeonpea_project/braker_output/NSPP_3C/genes_sorted.bed \
+-g /home/s2907620/pigeonpea_project/final_assembled_files/ragtag_final_submission/HY3C_genome.txt \
+> genes_genome_sorted.bed
+
+##CREATING INTERGENIC FILE
+bedtools complement \
+-i genes_genome_sorted.bed \
+-g /home/s2907620/pigeonpea_project/final_assembled_files/ragtag_final_submission/HY3C_genome.txt \
+> intergenic.bed
+
+
+
+###NOW INTERSECTING ALL THESE FILES TO GET THE NUMBER OF SV
+
+##THIS IS THE CODE TO GET THE TOTAL NUMBER OF NON-OVERLAPPING SV
+cp sv.bed remaining.bed
+
+cp sv.bed remaining.bed
+
+# 1. Exonic
+bedtools intersect -a remaining.bed -b exons.bed -wa -u > SV_exon_ICPL87.bed
+bedtools intersect -a remaining.bed -b exons.bed -v > remaining_tmp.bed
+mv remaining_tmp.bed remaining.bed
+
+# 2. Intronic
+bedtools intersect -a remaining.bed -b introns.bed -wa -u > SV_intron_ICPL87.bed
+bedtools intersect -a remaining.bed -b introns.bed -v > remaining_tmp.bed
+mv remaining_tmp.bed remaining.bed
+
+# 3. Upstream
+bedtools intersect -a remaining.bed -b upstream2kb.bed -wa -u > SV_upstream_ICPL87.bed
+bedtools intersect -a remaining.bed -b upstream2kb.bed -v > remaining_tmp.bed
+mv remaining_tmp.bed remaining.bed
+
+# 4. Downstream
+bedtools intersect -a remaining.bed -b downstream2kb.bed -wa -u > SV_downstream_ICPL87.bed
+bedtools intersect -a remaining.bed -b downstream2kb.bed -v > remaining_tmp.bed
+mv remaining_tmp.bed remaining.bed
+
+# 5. Intergenic = jo bacha
+cp remaining.bed SV_intergenic_ICPL87.bed
