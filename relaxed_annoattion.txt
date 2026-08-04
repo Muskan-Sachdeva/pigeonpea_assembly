@@ -1,5 +1,5 @@
 ##############Run diamond using low e values and k value 10 , means for every unique id- diamond gives 10 hits, and from all the hits given for 1 unique id, we need to extract top 1 hits
-
+##Author: Muskan
 ###########################################################################
 swissprot
 ###########################################################################
