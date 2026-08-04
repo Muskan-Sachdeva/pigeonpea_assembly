@@ -15,7 +15,7 @@
 # ./trim_adapters.sh <R1_input.fastq.gz> <R2_input.fastq.gz> <output_prefix> <threads>
 # Example:
 # ./trim_adapters.sh SO_12802_NS_PP87_R1.fastq.gz SO_12802_NS_PP87_R2.fastq.gz first_trimmed_results/trimmed_NS_PP87 18
-
+#AUTHOR: MUSKAN
 # -------------------------
 # Arguments
 # -------------------------
