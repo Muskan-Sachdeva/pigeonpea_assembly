@@ -1,13 +1,14 @@
 ## **Overview**
-This repository contains a pipeline for functional annotation of pigeonpea protein sequences using [EggNOG-mapper v2](http://eggnog-mapper.embl.de/).  
-The pipeline performs:  
-- Orthology assignment  
-- Functional annotation: COG, GO, KEGG, EC  
-- Taxonomy-specific annotation (Viridiplantae)  
+#This repository contains a pipeline for functional annotation of pigeonpea protein sequences using [EggNOG-mapper v2](http://eggnog-mapper.embl.de/).  
+#The pipeline performs:  
+#- Orthology assignment  
+#- Functional annotation: COG, GO, KEGG, EC  
+#- Taxonomy-specific annotation (Viridiplantae)  
 
 ###############################################################################
 # EggNOG-mapper v2.1.12 functional annotation pipeline
 # Pigeonpea (Cajanus cajan) genotypes: NSPP-3C/50/70/71/87
+#AUTHOR: MUSKAN
 ###############################################################################
 
 conda create -n eggnog_new #Creating conda env for eggnog
