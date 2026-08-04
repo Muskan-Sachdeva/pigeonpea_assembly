@@ -1,3 +1,5 @@
+#######NEXTPOLISH_RUN
+##AUTHOR: MUSKAN
 #sgs.fofn file
 # sgs.fofn = Short-read (Second Generation Sequencing) File Of File Names
 # This file contains the full paths to Illumina paired-end FASTQ files
