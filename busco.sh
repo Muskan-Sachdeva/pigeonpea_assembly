@@ -8,6 +8,7 @@
 #
 # BUSCO (Benchmarking Universal Single-Copy Orthologs) assesses genome
 # completeness based on evolutionarily conserved genes.
+#AUTHOR:MUSKAN
 #
 # Platform:
 #   - Linux workstation / server
