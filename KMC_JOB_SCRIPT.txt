@@ -1,6 +1,7 @@
 ########################################
 # KMC JOB SCRIPT FOR k=21 K-MER HISTOGRAM
 # Illumina paired-end + ONT reads
+#AUTHOR: MUSKAN
 ########################################
 
 #!/bin/bash
