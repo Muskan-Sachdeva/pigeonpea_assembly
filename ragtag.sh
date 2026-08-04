@@ -1,7 +1,7 @@
 #!/bin/bash
 ###############################################################################
 # RagTag Scaffolding of Pigeonpea Genome Assembly
-#
+#Author: Muskan
 # Description:
 # This script uses RagTag to scaffold a polished pigeonpea genome assembly
 # against a high-quality reference genome. RagTag performs reference-guided
