@@ -5,6 +5,7 @@
 # Notes:
 # - Generates quality reports for R1 and R2 reads
 # - Output goes to separate folders for each read
+#AUTHOR:MUSKAN
 ###############################################################################
 
 # NSPP_3C
