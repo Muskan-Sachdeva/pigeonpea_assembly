@@ -1,6 +1,7 @@
 
 #######################################################################################################
-Script to do the alignment of long ONT data with reference to find the structural variants
+##Script to do the alignment of long ONT data with reference to find the structural variants
+##AUTHOR:MUSKAN
 
 ## step 1 alignment of raw reads to the reference using minimap2 and samtools
 
