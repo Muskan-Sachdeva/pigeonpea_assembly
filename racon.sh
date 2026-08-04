@@ -1,7 +1,7 @@
 #Purpose- long read polishing of draft assembled file
 #The same script is used for all the genotypes
 #Notes: Designed for Grid Engine cluster
-
+#Author: Muskan
 #code for minimap2 for the alignment of hifiasm assembly and raw fastq reads, required for the polishing by racon. The same script is used for all the genotypes
 
 #!/bin/bash
