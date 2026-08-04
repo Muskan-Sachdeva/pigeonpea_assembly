@@ -1,0 +1,847 @@
+#!/bin/bash
+
+# ============================================================
+# PIGEONPEA GO ENRICHMENT ANALYSIS - COMPLETE PIPELINE
+# From OrthoFinder results to GO enrichment input files
+# ============================================================
+# Author: MUSKAN
+# Date: 15/07/26
+# Purpose: Extract genotype-specific genes and create GO mapping
+# ============================================================
+
+set -e  # Exit on error
+
+# ============================================================
+# CONFIGURATION # ============================================================
+
+# Base directories
+ORTHOFINDER_DIR="/home/s2907620/pigeonpea_project/final_proteomes/OrthoFinder/Results_Jul02/Orthogroups"
+MASTER_FILES_DIR="/home/s2907620/pigeonpea_project/master_files"
+WORK_DIR="$(pwd)"
+
+# Output directory
+OUTPUT_DIR="${WORK_DIR}/enrichment_input"
+
+# ============================================================
+# SETUP
+# ============================================================
+
+echo "=========================================="
+echo "PIGEONPEA GO ENRICHMENT PIPELINE"
+echo "=========================================="
+echo ""
+echo "Working directory: $WORK_DIR"
+echo "OrthoFinder directory: $ORTHOFINDER_DIR"
+echo "Master files directory: $MASTER_FILES_DIR"
+echo ""
+
+# Create output directory
+mkdir -p "$OUTPUT_DIR"
+cd "$OUTPUT_DIR"
+
+echo "Output directory: $OUTPUT_DIR"
+echo ""
+
+# ============================================================
+# STEP 1: FIND GENOTYPE-SPECIFIC ORTHOGROUPS
+# ============================================================
+
+echo "=========================================="
+echo "STEP 1: Finding genotype-specific orthogroups"
+echo "=========================================="
+
+cat > find_specific_OGs.py << 'EOF'
+import pandas as pd
+
+# Load gene count table
+df = pd.read_csv("Orthogroups.GeneCount.tsv", sep="\t")
+
+high = ["NSPP_3C_primary", "NSPP_87_primary"]   # HY3C, ICPL87
+mod  = ["NSPP_50_primary", "NSPP_70_primary"]   # MC50, MC70
+
+# Find genotype-specific orthogroups
+high_specific = df[(df[high] > 0).all(axis=1) & (df[mod] == 0).all(axis=1)]
+mod_specific  = df[(df[mod]  > 0).all(axis=1) & (df[high] == 0).all(axis=1)]
+
+print(f"High-protein specific orthogroups: {len(high_specific)}")
+print(f"Moderate-protein specific orthogroups: {len(mod_specific)}")
+
+# Save results
+high_specific.to_csv("OGs_high_protein_specific.tsv", sep="\t", index=False)
+mod_specific.to_csv("OGs_moderate_protein_specific.tsv", sep="\t", index=False)
+
+# Save just the orthogroup IDs
+high_specific["Orthogroup"].to_csv("OG_IDs_high_specific.txt", index=False, header=False)
+mod_specific["Orthogroup"].to_csv("OG_IDs_moderate_specific.txt", index=False, header=False)
+
+print("✓ Orthogroup files created")
+EOF
+
+# Copy OrthoFinder results
+cp "$ORTHOFINDER_DIR/Orthogroups.GeneCount.tsv" .
+cp "$ORTHOFINDER_DIR/Orthogroups.tsv" .
+
+# Run Python script
+python find_specific_OGs.py
+echo "✓ Step 1 complete"
+echo ""
+
+# ============================================================
+# STEP 2: EXTRACT GENES FROM ORTHOGROUPS
+# ============================================================
+
+echo "=========================================="
+echo "STEP 2: Extracting gene IDs from orthogroups"
+echo "=========================================="
+
+awk 'NR==FNR{ogs[$1]; next} FNR==1 || ($1 in ogs)' \
+  OG_IDs_high_specific.txt Orthogroups.tsv > genes_high_specific.tsv
+
+awk 'NR==FNR{ogs[$1]; next} FNR==1 || ($1 in ogs)' \
+  OG_IDs_moderate_specific.txt Orthogroups.tsv > genes_moderate_specific.tsv
+
+echo "✓ genes_high_specific.tsv created: $(wc -l < genes_high_specific.tsv) lines"
+echo "✓ genes_moderate_specific.tsv created: $(wc -l < genes_moderate_specific.tsv) lines"
+echo ""
+
+# ============================================================
+# STEP 3: EXTRACT INDIVIDUAL GENE IDs BY GENOTYPE
+# ============================================================
+
+echo "=========================================="
+echo "STEP 3: Extracting individual gene IDs"
+echo "=========================================="
+
+# High protein genotypes
+awk -F'\t' 'NR>1{print $2}' genes_high_specific.tsv | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' > geneIDs_HY3C_specific.txt
+awk -F'\t' 'NR>1{print $5}' genes_high_specific.tsv | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' > geneIDs_ICPL87_specific.txt
+
+# Moderate protein genotypes
+awk -F'\t' 'NR>1{print $3}' genes_moderate_specific.tsv | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' > geneIDs_MC50_specific.txt
+awk -F'\t' 'NR>1{print $4}' genes_moderate_specific.tsv | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' > geneIDs_MC70_specific.txt
+
+# Combined gene lists
+cat geneIDs_HY3C_specific.txt geneIDs_ICPL87_specific.txt > geneIDs_high_specific.txt
+cat geneIDs_MC50_specific.txt geneIDs_MC70_specific.txt > geneIDs_moderate_specific.txt
+
+echo "HY3C genes: $(wc -l < geneIDs_HY3C_specific.txt)"
+echo "ICPL87 genes: $(wc -l < geneIDs_ICPL87_specific.txt)"
+echo "HP total entries: $(wc -l < geneIDs_high_specific.txt)"
+echo ""
+echo "MC50 genes: $(wc -l < geneIDs_MC50_specific.txt)"
+echo "MC70 genes: $(wc -l < geneIDs_MC70_specific.txt)"
+echo "MP total entries: $(wc -l < geneIDs_moderate_specific.txt)"
+echo ""
+
+# ============================================================
+# STEP 4: GET ANNOTATIONS FROM MASTER FILES
+# ============================================================
+
+echo "=========================================="
+echo "STEP 4: Extracting annotations from master files"
+echo "=========================================="
+
+awk -F'\t' 'NR==FNR{ids[$1]; next} FNR==1 || ($1 in ids)' \
+  geneIDs_HY3C_specific.txt \
+  "$MASTER_FILES_DIR/NSPP_3C/NSPP_3C_master_annotation.tsv" \
+  > HY3C_specific_annotation.tsv
+
+awk -F'\t' 'NR==FNR{ids[$1]; next} FNR==1 || ($1 in ids)' \
+  geneIDs_ICPL87_specific.txt \
+  "$MASTER_FILES_DIR/NSPP_87/NSPP_87_master_annotation.tsv" \
+  > ICPL87_specific_annotation.tsv
+
+awk -F'\t' 'NR==FNR{ids[$1]; next} FNR==1 || ($1 in ids)' \
+  geneIDs_MC50_specific.txt \
+  "$MASTER_FILES_DIR/NSPP_50/NSPP_50_master_annotated_only.tsv" \
+  > MC50_specific_annotation.tsv
+
+awk -F'\t' 'NR==FNR{ids[$1]; next} FNR==1 || ($1 in ids)' \
+  geneIDs_MC70_specific.txt \
+  "$MASTER_FILES_DIR/NSPP_70/NSPP_70_master_annotated.tsv" \
+  > MC70_specific_annotation.tsv
+
+echo "HY3C annotated: $(wc -l < HY3C_specific_annotation.tsv) lines"
+echo "ICPL87 annotated: $(wc -l < ICPL87_specific_annotation.tsv) lines"
+echo "MC50 annotated: $(wc -l < MC50_specific_annotation.tsv) lines"
+echo "MC70 annotated: $(wc -l < MC70_specific_annotation.tsv) lines"
+echo "✓ Step 4 complete"
+echo ""
+
+# ============================================================
+# STEP 5: COMBINE ANNOTATIONS BY PHENOTYPE
+# ============================================================
+
+echo "=========================================="
+echo "STEP 5: Combining annotations by phenotype"
+echo "=========================================="
+
+# Combine HP genotypes
+(head -1 HY3C_specific_annotation.tsv && \
+ tail -n +2 HY3C_specific_annotation.tsv && \
+ tail -n +2 ICPL87_specific_annotation.tsv) \
+> HighProtein_annotation.tsv
+
+# Combine MP genotypes
+(head -1 MC50_specific_annotation.tsv && \
+ tail -n +2 MC50_specific_annotation.tsv && \
+ tail -n +2 MC70_specific_annotation.tsv) \
+> ModerateProtein_annotation.tsv
+
+echo "HighProtein_annotation.tsv: $(wc -l < HighProtein_annotation.tsv) lines"
+echo "ModerateProtein_annotation.tsv: $(wc -l < ModerateProtein_annotation.tsv) lines"
+echo "✓ Step 5 complete"
+echo ""
+
+# ============================================================
+# STEP 6: FILTER TRANSPOSABLE ELEMENTS
+# ============================================================
+
+echo "=========================================="
+echo "STEP 6: Filtering transposable elements"
+echo "=========================================="
+
+grep -Eiv "transposon|retrotransposon|reverse transcriptase|retrovirus|gag-pol|integrase|transposable" \
+  HighProtein_annotation.tsv > HighProtein_noTE.tsv
+
+grep -Eiv "transposon|retrotransposon|reverse transcriptase|retrovirus|gag-pol|integrase|transposable" \
+  ModerateProtein_annotation.tsv > ModerateProtein_noTE.tsv
+
+echo "HighProtein after TE filter: $(wc -l < HighProtein_noTE.tsv) lines"
+echo "ModerateProtein after TE filter: $(wc -l < ModerateProtein_noTE.tsv) lines"
+echo "✓ Step 6 complete"
+echo ""
+
+# ============================================================
+# STEP 7: EXTRACT GO TERMS
+# ============================================================
+
+echo "=========================================="
+echo "STEP 7: Extracting GO terms"
+echo "=========================================="
+
+# Determine which column has GO terms (usually last column)
+GO_COL=$(head -1 HighProtein_noTE.tsv | tr '\t' '\n' | wc -l)
+
+echo "Total columns in annotation file: $GO_COL"
+echo "Using column $GO_COL for GO terms"
+echo ""
+
+# Extract GO terms (last column = NF)
+awk -F'\t' 'NR>1 && NF>0 && $NF != "-" && $NF != "" && $NF != "NA" {
+  split($NF, gos, ",")
+  for(i in gos) {
+    gsub(/^ +| +$/, "", gos[i])
+    if(gos[i] != "") print $1 "\t" gos[i]
+  }
+}' HighProtein_noTE.tsv > HighProtein_gene_GO.tsv
+
+awk -F'\t' 'NR>1 && NF>0 && $NF != "-" && $NF != "" && $NF != "NA" {
+  split($NF, gos, ",")
+  for(i in gos) {
+    gsub(/^ +| +$/, "", gos[i])
+    if(gos[i] != "") print $1 "\t" gos[i]
+  }
+}' ModerateProtein_noTE.tsv > ModerateProtein_gene_GO.tsv
+
+echo "HighProtein_gene_GO.tsv: $(wc -l < HighProtein_gene_GO.tsv) lines"
+echo "ModerateProtein_gene_GO.tsv: $(wc -l < ModerateProtein_gene_GO.tsv) lines"
+echo "✓ Step 7 complete"
+echo ""
+
+# ============================================================
+# STEP 8: EXTRACT UNIQUE GENES
+# ============================================================
+
+echo "=========================================="
+echo "STEP 8: Extracting unique genes"
+echo "=========================================="
+
+# Get unique genes (this is CRITICAL for R script)
+cut -f1 HighProtein_gene_GO.tsv | sort -u > hp_genes.txt
+cut -f1 ModerateProtein_gene_GO.tsv | sort -u > mp_genes.txt
+
+HP_COUNT=$(wc -l < hp_genes.txt)
+MP_COUNT=$(wc -l < mp_genes.txt)
+
+echo "Unique HP genes: $HP_COUNT"
+echo "Unique MP genes: $MP_COUNT"
+
+if [ "$HP_COUNT" -ne 264 ]; then
+  echo "WARNING: HP gene count is $HP_COUNT (expected 264)"
+fi
+
+if [ "$MP_COUNT" -ne 370 ]; then
+  echo "WARNING: MP gene count is $MP_COUNT (expected 370)"
+fi
+
+echo "✓ Step 8 complete"
+echo ""
+
+# ============================================================
+# STEP 9: CREATE GO-GENE BACKGROUND MAPPING
+# ============================================================
+
+echo "=========================================="
+echo "STEP 9: Creating GO-gene background mapping"
+echo "=========================================="
+
+echo "Merging all master annotations..."
+
+{
+head -1 "$MASTER_FILES_DIR/NSPP_3C/NSPP_3C_master_annotation.tsv"
+tail -n +2 "$MASTER_FILES_DIR/NSPP_3C/NSPP_3C_master_annotation.tsv"
+tail -n +2 "$MASTER_FILES_DIR/NSPP_50/NSPP_50_master_annotation.tsv"
+tail -n +2 "$MASTER_FILES_DIR/NSPP_70/NSPP_70_master_annotation.tsv"
+tail -n +2 "$MASTER_FILES_DIR/NSPP_87/NSPP_87_master_annotation.tsv"
+} > merged_master_annotation.tsv
+
+echo "merged_master_annotation.tsv: $(wc -l < merged_master_annotation.tsv) lines"
+echo ""
+
+echo "Creating go2gene.tsv (GO_term TAB gene_id format)..."
+
+# CRITICAL: GO term FIRST, gene_id SECOND
+# Extract from second-to-last column (GO terms) and second column (gene_id)
+awk -F'\t' 'NR>1 && $(NF-1) != "-" && $(NF-1) != "" && $(NF-1) != "NA" {
+  gsub(/^ +| +$/, "", $(NF-1))
+  split($(NF-1), gos, ",")
+  for(i in gos) {
+    gsub(/^ +| +$/, "", gos[i])
+    if(gos[i] != "") print gos[i] "\t" $2
+  }
+}' merged_master_annotation.tsv > go2gene.tsv
+
+GO_LINES=$(wc -l < go2gene.tsv)
+echo "go2gene.tsv: $GO_LINES lines"
+echo "✓ Step 9 complete"
+echo ""
+
+# ============================================================
+# STEP 10: VERIFICATION
+# ============================================================
+
+echo "=========================================="
+echo "STEP 10: Verification"
+echo "=========================================="
+
+echo ""
+echo "Checking go2gene.tsv format (should be GO_term TAB gene_id):"
+echo "Column 1 (GO terms - first 5):"
+cut -f1 go2gene.tsv | head -5
+echo ""
+echo "Column 2 (gene IDs - first 5):"
+cut -f2 go2gene.tsv | head -5
+echo ""
+
+echo "Sample hp_genes.txt (first 10):"
+head -10 hp_genes.txt
+echo ""
+
+echo "Sample mp_genes.txt (first 10):"
+head -10 mp_genes.txt
+echo ""
+
+# ============================================================
+# STEP 11: FINAL SUMMARY
+# ============================================================
+
+echo "=========================================="
+echo "PIPELINE COMPLETE!"
+echo "=========================================="
+echo ""
+echo "Generated files:"
+echo "  1. hp_genes.txt ($HP_COUNT genes) ✓"
+echo "  2. mp_genes.txt ($MP_COUNT genes) ✓"
+echo "  3. go2gene.tsv ($GO_LINES mappings) ✓"
+echo ""
+echo "All files ready for R enrichment script!"
+echo ""
+echo "Output directory: $OUTPUT_DIR"
+echo ""
+echo "Next step: Run GO_Enrichment_Complete_Analysis.R"
+echo "=========================================="
+
+
+###########################################################
+##GO ENRICHMENT IN R
+###########################################################
+
+# ============================================================
+# PIGEONPEA GO ENRICHMENT - CORRECTED VERSION
+# ============================================================
+
+library(clusterProfiler)
+library(AnnotationDbi)
+library(GO.db)
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(stringr)
+library(scales)
+
+setwd("E:/gene_enrichment")
+
+# ============================================================
+# STEP 1: READ GENE LISTS
+# ============================================================
+
+hp_genes <- scan("hp_genes.txt", character())
+mp_genes <- scan("mp_genes.txt", character())
+
+cat("HP genes:", length(hp_genes), "\n")
+cat("MP genes:", length(mp_genes), "\n\n")
+
+# ============================================================
+# STEP 2: READ GO MAPPING
+# ============================================================
+
+term2gene <- read.delim("go2gene.tsv", header=FALSE)
+term2gene <- term2gene[, c(2, 1)]
+colnames(term2gene) <- c("TERM", "GENE")
+
+head(term2gene)
+cat("GO-gene mappings:", nrow(term2gene), "\n")
+cat("Unique genes:", length(unique(term2gene$GENE)), "\n")
+cat("Unique GO terms:", length(unique(term2gene$TERM)), "\n\n")
+
+# ============================================================
+# STEP 3: ENRICHMENT - HIGH PROTEIN (CORRECTED PARAMETERS!)
+# ============================================================
+
+cat("\n--- Running enrichment for HIGH PROTEIN ---\n")
+
+hp_enrich <- enricher(
+  gene = hp_genes,
+  TERM2GENE = term2gene,
+  pvalueCutoff = 0.05,        
+  qvalueCutoff = 0.1,         
+  pAdjustMethod = "BH"
+)
+
+hp_res <- as.data.frame(hp_enrich)
+cat("HP significant terms:", nrow(hp_res), "\n\n")
+
+# ============================================================
+# STEP 4: ENRICHMENT - MODERATE PROTEIN
+# ============================================================
+
+cat("\n--- Running enrichment for MODERATE PROTEIN ---\n")
+
+mp_enrich <- enricher(
+  gene = mp_genes,
+  TERM2GENE = term2gene,
+  pvalueCutoff = 0.05,
+  qvalueCutoff = 0.1,
+  pAdjustMethod = "BH"
+)
+
+mp_res <- as.data.frame(mp_enrich)
+cat("MP significant terms:", nrow(mp_res), "\n\n")
+
+# ============================================================
+# STEP 5: ADD GO FUNCTION NAMES
+# ============================================================
+
+cat("\n--- Adding GO function names ---\n")
+
+get_go_function <- function(go_id) {
+  tryCatch({
+    term_obj <- GOTERM[[go_id]]
+    if(!is.null(term_obj)) {
+      return(as.character(Term(term_obj)))
+    } else {
+      return(go_id)
+    }
+  }, error = function(e) {
+    return(go_id)
+  })
+}
+
+hp_res$Function <- sapply(hp_res$ID, get_go_function)
+mp_res$Function <- sapply(mp_res$ID, get_go_function)
+cat("✓ Function names added\n\n")
+
+# ============================================================
+# STEP 6: ADD GO ONTOLOGY (BEFORE FILTERING)
+# ============================================================
+
+cat("\n--- Extracting GO ontology categories ---\n")
+
+get_go_ontology <- function(go_id) {
+  tryCatch({
+    term_obj <- GOTERM[[go_id]]
+    if(!is.null(term_obj)) {
+      return(as.character(Ontology(term_obj)))
+    } else {
+      return("Unknown")
+    }
+  }, error = function(e) {
+    return("Unknown")
+  })
+}
+
+hp_res$Ontology <- sapply(hp_res$ID, get_go_ontology)
+mp_res$Ontology <- sapply(mp_res$ID, get_go_ontology)
+cat("✓ Ontology extracted\n\n")
+
+# ============================================================
+# STEP 7: FILTER FOR SIGNIFICANT TERMS
+# ============================================================
+
+cat("\n--- Filtering significant terms (p.adjust < 0.05) ---\n")
+
+hp_res_sig <- hp_res[hp_res$p.adjust < 0.05, ]
+mp_res_sig <- mp_res[mp_res$p.adjust < 0.05, ]
+
+cat("HP significant terms:", nrow(hp_res_sig), "\n")
+cat("MP significant terms:", nrow(mp_res_sig), "\n\n")
+
+# ============================================================
+# STEP 8: SAVE TSV FILES
+# ============================================================
+
+cat("\n--- Saving TSV files ---\n")
+
+write.table(hp_res_sig, "HP_enrichment_SIGNIFICANT.tsv", 
+            quote=F, row.names=F, sep="\t")
+write.table(mp_res_sig, "MP_enrichment_SIGNIFICANT.tsv", 
+            quote=F, row.names=F, sep="\t")
+
+cat("✓ HP_enrichment_SIGNIFICANT.tsv saved\n")
+cat("✓ MP_enrichment_SIGNIFICANT.tsv saved\n\n")
+
+# ============================================================
+# STEP 9: PREPARE DATA FOR PLOTS (TOP 20)
+# ============================================================
+
+cat("\n--- Preparing data for plots (Top 20) ---\n")
+
+wrap_text <- function(text, width=45) {
+  paste(strwrap(text, width=width), collapse="\n")
+}
+
+prepare_plot_data <- function(res_df, top_n=20) {
+  res_df %>%
+    arrange(p.adjust) %>%
+    head(top_n) %>%
+    mutate(
+      Function_with_count = paste0(Function, " (", Count, ")"),
+      Function_wrapped = sapply(Function_with_count, wrap_text, width=45)
+    ) %>%
+    arrange(desc(p.adjust))
+}
+
+hp_data <- prepare_plot_data(hp_res_sig, top_n=20)
+mp_data <- prepare_plot_data(mp_res_sig, top_n=20)
+
+cat("✓ HP top 20 prepared\n")
+cat("✓ MP top 20 prepared\n\n")
+
+# ============================================================
+# STEP 10: CREATE PLOT THEME
+# ============================================================
+
+cat("\n--- Setting up plot theme ---\n")
+
+theme_genome_biology <- function() {
+  theme_minimal() +
+    theme(
+      panel.border = element_rect(colour = "black", fill=NA, size=1),
+      panel.background = element_rect(fill="white", color=NA),
+      panel.grid.major.x = element_line(color="grey90", size=0.3),
+      panel.grid.major.y = element_blank(),
+      axis.title.x = element_text(size=12, face="bold", color="black"),
+      axis.title.y = element_text(size=12, face="bold", color="black"),
+      axis.text.x = element_text(size=10, color="black"),
+      axis.text.y = element_text(size=8, color="black"),
+      legend.position = "right",
+      legend.background = element_rect(fill="white", color="black", size=0.8),
+      legend.text = element_text(size=9, color="black"),
+      legend.title = element_text(size=10, face="bold", color="black"),
+      plot.title = element_text(size=12, face="bold", hjust=0.5),
+      plot.margin = margin(10, 10, 10, 10)
+    )
+}
+
+cat("✓ Theme created\n\n")
+
+# ============================================================
+# STEP 11: CREATE BUBBLE PLOT FUNCTION
+# ============================================================
+
+cat("\n--- Creating plot function ---\n")
+
+create_gb_plot <- function(plot_data, title_text, x_max, x_breaks) {
+  ggplot(plot_data, aes(x=RichFactor, y=reorder(Function_wrapped, RichFactor))) +
+    geom_point(aes(size=Count, color=p.adjust), alpha=0.75, stroke=0.6) +
+    scale_color_gradient(
+      low="#0072B2",
+      high="#E31A1C",
+      name="q-value",
+      trans="log10",
+      limits=c(1e-15, 1e-06),
+      breaks=c(1e-15, 1e-12, 1e-09, 1e-06),
+      labels=c("1e-15", "1e-12", "1e-09", "1e-06"),
+      oob=squish
+    ) +
+    scale_size_continuous(
+      name="Gene Count",
+      range=c(2, 8),
+      breaks=c(5, 10, 15, 20, 25)
+    ) +
+    scale_x_continuous(
+      limits=c(0, x_max),
+      breaks=x_breaks
+    ) +
+    theme_genome_biology() +
+    guides(
+      size = guide_legend(order=1, title="Gene Count"),
+      color = guide_colorbar(order=2, title="q-value")
+    ) +
+    labs(title=title_text, x="Rich Factor", y="")
+}
+
+cat("✓ Plot function created\n\n")
+
+# ============================================================
+# STEP 12: CREATE PLOTS
+# ============================================================
+
+cat("\n--- Creating plots ---\n")
+
+p_hp <- create_gb_plot(hp_data, "GO enrichment - High protein genotypes", 
+                       x_max=0.25, x_breaks=c(0.05, 0.15, 0.25))
+
+p_mp <- create_gb_plot(mp_data, "GO enrichment - Moderate protein genotypes", 
+                       x_max=0.45, x_breaks=c(0.05, 0.15, 0.25, 0.35, 0.45))
+
+cat("✓ HP plot created\n")
+cat("✓ MP plot created\n\n")
+
+# ============================================================
+# STEP 13: COMBINE PLOTS
+# ============================================================
+
+cat("\n--- Combining plots ---\n")
+
+combined <- arrangeGrob(p_hp, p_mp, nrow=1, ncol=2)
+cat("✓ Combined plot created\n\n")
+
+# ============================================================
+# STEP 14: SAVE FIGURES
+# ============================================================
+
+cat("\n--- Saving figures ---\n")
+
+ggsave("Figure_Main_GO_Enrichment.tiff", 
+       plot=combined, width=14, height=8, dpi=600, compression="lzw")
+ggsave("Figure_Main_GO_Enrichment.pdf", 
+       plot=combined, width=14, height=8, dpi=300)
+
+ggsave("Figure_HP_Enrichment.tiff", 
+       plot=p_hp, width=7, height=8, dpi=600, compression="lzw")
+ggsave("Figure_MP_Enrichment.tiff", 
+       plot=p_mp, width=7, height=8, dpi=600, compression="lzw")
+
+ggsave("Figure_HP_Enrichment.pdf", 
+       plot=p_hp, width=7, height=8, dpi=300)
+ggsave("Figure_MP_Enrichment.pdf", 
+       plot=p_mp, width=7, height=8, dpi=300)
+
+cat("✓ Figures saved (600 DPI TIFF)\n\n")
+
+# ============================================================
+# STEP 15: GO CATEGORY COUNTS (FROM FILTERED DATA!)
+# ============================================================
+
+cat("\n--- Counting GO categories (from SIGNIFICANT terms only) ---\n")
+
+hp_counts <- hp_res_sig %>%
+  group_by(Ontology) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  mutate(Genotype = "High Protein")
+
+mp_counts <- mp_res_sig %>%
+  group_by(Ontology) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  mutate(Genotype = "Moderate Protein")
+
+all_counts <- bind_rows(hp_counts, mp_counts)
+
+cat("HP categories:\n")
+print(hp_counts)
+cat("\nMP categories:\n")
+print(mp_counts)
+cat("\n")
+
+# ============================================================
+# STEP 16: CREATE CATEGORY DISTRIBUTION PLOT
+# ============================================================
+
+cat("\n--- Creating GO category distribution plot ---\n")
+
+p_categories <- ggplot(all_counts, aes(x=Genotype, y=Count, fill=Ontology)) +
+  geom_bar(stat="identity", position="dodge", color="black", size=0.6) +
+  scale_fill_manual(
+    name="GO Category",
+    values=c("BP"="#E69F00", "MF"="#56B4E9", "CC"="#009E73"),
+    labels=c("BP"="Biological Process", "MF"="Molecular Function", "CC"="Cellular Component")
+  ) +
+  theme_minimal() +
+  theme(
+    panel.border = element_rect(colour = "black", fill=NA, size=1),
+    axis.title.x = element_text(size=12, face="bold"),
+    axis.title.y = element_text(size=12, face="bold"),
+    axis.text = element_text(size=10),
+    legend.position = "right",
+    legend.title = element_text(face="bold"),
+    legend.text = element_text(size=10)
+  ) +
+  labs(
+    title="GO Category Distribution - High vs Moderate Protein",
+    x="Genotype",
+    y="Number of Enriched GO Terms"
+  ) +
+  geom_text(aes(label=Count), position=position_dodge(width=0.9), vjust=-0.5, size=4)
+
+print(p_categories)
+
+ggsave("GO_Category_Distribution.tiff", 
+       plot=p_categories, width=8, height=6, dpi=600, compression="lzw")
+ggsave("GO_Category_Distribution.pdf", 
+       plot=p_categories, width=8, height=6, dpi=300)
+
+cat("✓ Category plot saved\n\n")
+
+# ============================================================
+# STEP 17: CREATE PIE CHARTS
+# ============================================================
+
+cat("\n--- Creating pie charts ---\n")
+
+p_hp_pie <- ggplot(hp_counts, aes(x="", y=Count, fill=Ontology)) +
+  geom_bar(stat="identity", color="black", size=0.6) +
+  coord_polar("y", start=0) +
+  scale_fill_manual(
+    name="GO Category",
+    values=c("BP"="#E69F00", "MF"="#56B4E9", "CC"="#009E73")
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    plot.title = element_text(hjust=0.5, face="bold", size=12)
+  ) +
+  labs(title="High Protein Genotypes") +
+  geom_text(aes(label=Count), position=position_stack(vjust=0.5), size=4, face="bold")
+
+p_mp_pie <- ggplot(mp_counts, aes(x="", y=Count, fill=Ontology)) +
+  geom_bar(stat="identity", color="black", size=0.6) +
+  coord_polar("y", start=0) +
+  scale_fill_manual(
+    name="GO Category",
+    values=c("BP"="#E69F00", "MF"="#56B4E9", "CC"="#009E73")
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    plot.title = element_text(hjust=0.5, face="bold", size=12)
+  ) +
+  labs(title="Moderate Protein Genotypes") +
+  geom_text(aes(label=Count), position=position_stack(vjust=0.5), size=4, face="bold")
+
+combined_pies <- arrangeGrob(p_hp_pie, p_mp_pie, nrow=1, ncol=2)
+
+print(combined_pies)
+
+ggsave("GO_Category_PieCharts.tiff", 
+       plot=combined_pies, width=10, height=5, dpi=600, compression="lzw")
+ggsave("GO_Category_PieCharts.pdf", 
+       plot=combined_pies, width=10, height=5, dpi=300)
+
+cat("✓ Pie charts saved\n\n")
+
+# ============================================================
+# STEP 18: CREATE GENE-CENTRIC TSV (FROM FILTERED DATA!)
+# ============================================================
+
+cat("\n--- Creating gene-centric TSV files ---\n")
+
+expand_genes <- function(res_df, genotype_name) {
+  gene_functions <- data.frame()
+  
+  for(i in 1:nrow(res_df)) {
+    go_id <- res_df$ID[i]
+    function_name <- res_df$Function[i]
+    ontology <- res_df$Ontology[i]
+    genes <- strsplit(res_df$geneID[i], "/")[[1]]
+    
+    for(gene in genes) {
+      gene_functions <- rbind(gene_functions, data.frame(
+        Gene_ID = gene,
+        GO_ID = go_id,
+        GO_Function = function_name,
+        Ontology = ontology,
+        Genotype = genotype_name,
+        Count_in_GO = res_df$Count[i],
+        RichFactor = res_df$RichFactor[i],
+        FoldEnrichment = res_df$FoldEnrichment[i],
+        p.adjust = res_df$p.adjust[i]
+      ))
+    }
+  }
+  
+  return(gene_functions)
+}
+
+#  CORRECTED: Use filtered data!
+hp_gene_functions <- expand_genes(hp_res_sig, "High Protein")
+mp_gene_functions <- expand_genes(mp_res_sig, "Moderate Protein")
+all_gene_functions <- rbind(hp_gene_functions, mp_gene_functions)
+
+cat("HP genes with functions:", nrow(hp_gene_functions), "\n")
+cat("MP genes with functions:", nrow(mp_gene_functions), "\n")
+cat("Total gene-function pairs:", nrow(all_gene_functions), "\n\n")
+
+# ============================================================
+# STEP 19: SAVE GENE-CENTRIC TSV
+# ============================================================
+
+cat("\n--- Saving gene-centric TSV files ---\n")
+
+write.table(hp_gene_functions, 
+            "HP_Genes_with_Functions.tsv",
+            quote=F, row.names=F, sep="\t")
+
+write.table(mp_gene_functions, 
+            "MP_Genes_with_Functions.tsv",
+            quote=F, row.names=F, sep="\t")
+
+write.table(all_gene_functions, 
+            "All_Genes_with_Functions.tsv",
+            quote=F, row.names=F, sep="\t")
+
+cat("✓ Gene-centric TSV files saved\n\n")
+
+# ============================================================
+# FINAL SUMMARY
+# ============================================================
+
+cat("========================================\n")
+cat("ANALYSIS COMPLETE!\n")
+cat("========================================\n\n")
+
+cat("INPUT:\n")
+cat("  HP genes: ", length(hp_genes), "\n")
+cat("  MP genes: ", length(mp_genes), "\n\n")
+
+cat("ENRICHMENT RESULTS:\n")
+cat("  HP significant GO terms: ", nrow(hp_res_sig), "\n")
+cat("  MP significant GO terms: ", nrow(mp_res_sig), "\n\n")
+
+cat("OUTPUT FILES:\n")
+cat("  TSV files: 5 created ✓\n")
+cat("  Figures: 6 created ✓\n\n")
+
+cat("Ready for manuscript submission!\n")
+cat("========================================\n")
