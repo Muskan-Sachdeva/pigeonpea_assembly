@@ -13,7 +13,7 @@
 #
 # Platform:
 #   - Linux / HPC environment
-#
+#Author: Muskan
 ################################################################################
 # PART 1: Combine RepeatModeler and LTR_retriever Libraries
 ###############################################################################
