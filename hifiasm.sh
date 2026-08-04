@@ -12,6 +12,7 @@
 # Notes:
 # - This script can be used for multiple genotypes by updating input/output paths.
 # - Ensure Hifiasm is installed in the activated environment.
+#AUTHOR: MUSKAN
 ###############################################################################
 
 ############################
