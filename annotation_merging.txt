@@ -1,9 +1,8 @@
+########ANNOTATION
+########AUTHOR:MUSKAN
 ##opening an interactive session
+
 qlogin -l h_rt=08:00:00 -l h_rss=16G
-
-
-
-
 ###############################################
 ##final steps followed after filtering of files
 
