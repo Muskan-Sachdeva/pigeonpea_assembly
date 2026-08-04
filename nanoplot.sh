@@ -2,7 +2,7 @@
 #================================================================
 # Script: run_nanoplot.sh
 # Purpose: Assess Nanopore read quality and calculate N50 using NanoPlot
-
+#AUTHOR: MUSKAN
 #================================================================
 
 # Set variables
