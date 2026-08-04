@@ -1,6 +1,6 @@
 ####################################################################################################################
 #########Phylogenetic tree developement############################
-
+##AUTHOR: MUSKAN
  ##Step1: Orthofinder run
 #!/bin/bash
 # Grid Engine options
