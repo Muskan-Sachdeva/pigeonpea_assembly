@@ -1,6 +1,6 @@
 ##################this script is used to find the structural variants calling using sniffles2 
 
-# inout file: bam sorted file 
+# input file: bam sorted file 
 #giving reference file is optional, if reference file is provided sniffles can find deletions also, as without reference cant tell the deletions using only bam file
 ##plant genome is complex so we will provide repeat annotation file also, which is the output of repeat masker (.fa.out),, converts that file to bed file ist.
 ##mapq means mapping quality, mapping quality above 30 shows our SV is 99/9% accurate
@@ -14,18 +14,12 @@ awk 'BEGIN{OFS="\t"} NR>3 {print $5, $6-1, $7, $11, 0, $10}' ragtag_87_scaffold_
 
 sort -k1,1 -k2,2n ragtag_87_scaffold_renamed.repeats.bed > ragtag_87_scaffold_renamed.repeats.sorted.bed
  
-
 ###refernce not working in sniffles because chromosome lines are not equal and some are very short lines, so samtools find it difficult to use samtools faidx and form a .fai file, so code used to fixed this error
 
 seqtk seq -A Final_Gapfilled_PPgenome_8FLcontigs.fa | fold -w 60 > fixed_clean.fa
 samtools faidx reference_fixed_clean.fa
 
 cut -f1,2 reference_fixed_clean.fa.fai > fixed_clean.chrom.sizes
-
-
-
-
-
 
 #!/bin/bash
 # Grid Engine options
@@ -36,8 +30,6 @@ cut -f1,2 reference_fixed_clean.fa.fai > fixed_clean.chrom.sizes
 #$ -l h_vmem=12G                    # Memory per core (16 × 12 GB = 192 GB total)
 #$ -j y                               # Join stdout and stderr
 #$ -o sniffles_87.log                  # Log file
-
-
 
 # Initialise environment
 . /etc/profile.d/modules.sh
