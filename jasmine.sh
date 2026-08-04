@@ -1,5 +1,6 @@
+##jasmine_run
+##
 ##script for jasmine run to merge the output of 3 tools svim, sniffles and cutesv
-
 ##content of jasmine_file_list.txt file
 #/home/s2907620/pigeonpea_project/sniffles/NSPP_3C/filtered_mapq30/NSPP_3C_filtered.vcf
 #/home/s2907620/pigeonpea_project/cutesv/NSPP_3C/filtered_mapq_30/NSPP_3C_cutesv_filtered.vcf
