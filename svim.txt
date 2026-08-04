@@ -1,0 +1,114 @@
+#SAM file for assembly based SV calling using SVIM-asm 
+##############
+#Final grid job for minimap for bam file 
+#!/bin/bash
+#$ -N sam_array_Muskan             # Job name
+#$ -l h_rt=04:00:00                # Runtime
+#$ -l h_vmem=16G                   # Memory per job
+#$ -pe sharedmem 12                # Number of cores
+#$ -P roslin_HighlanderLab         # Project name
+#$ -cwd                            # Run job from current directory
+#$ -t 1-5                          # Array job range based on number of lines
+
+# Initialise environment
+. /etc/profile.d/modules.sh
+module load miniforge
+module load igmm/apps/minimap2/2.28
+
+
+LINE=$(sed -n "${SGE_TASK_ID}p" /home/s2907620/pigeonpea_project/svim/minimap/genotypes.txt)
+
+#Extracting genotypes and path
+GTYPE=$(echo $LINE | awk '{print $1}')
+IPATH=$(echo $LINE | awk '{print $2}')
+
+#Setup Directory
+BASE_DIR="/home/s2907620/pigeonpea_project/svim/minimap"
+TARGET_DIR="${BASE_DIR}/${GTYPE}"
+mkdir -p $TARGET_DIR
+cd $TARGET_DIR
+
+#MINIMAP VARIABLES
+REFERENCE="/home/s2907620/HighlanderLab/reference/reference_fixed_clean.fa"
+ASSEMBLY="$IPATH"
+OUTSAM="${GTYPE}_aligned.sam"
+
+#RUNNING MINIMAP
+
+echo "Starting minimap for $GTYPE in $TARGET_DIR"
+
+# Execute minimap2
+minimap2 -ax asm5 --cs -r2k -t 12 $REFERENCE $ASSEMBLY > $OUTSAM
+
+echo "Job Done for Task $SGE_TASK_ID"
+
+
+##########################################################################################
+#####samtobam
+##########################################################################################
+#!/bin/bash
+#$ -N BAM_array_Muskan             # Job name
+#$ -l h_rt=04:00:00                # Runtime
+#$ -l h_vmem=16G                   # Memory per job
+#$ -pe sharedmem 12                # Number of cores
+#$ -P roslin_HighlanderLab         # Project name
+#$ -cwd                            # Run job from current directory
+#$ -t 1-5                          # Array job range based on number of lines
+
+# Initialise environment
+. /etc/profile.d/modules.sh
+module load miniforge
+
+conda activate /exports/cmvm/eddie/eb/groups/muskan_research/anaconda/envs/assembly
+
+LINE=$(sed -n "${SGE_TASK_ID}p" /home/s2907620/pigeonpea_project/svim/minimap/samtobam/samtobam_path.txt
+
+#Extracting genotypes and path
+GTYPE=$(echo $LINE | awk '{print $1}')
+IPATH=$(echo $LINE | awk '{print $2}')
+
+#Setup directory
+BASE_DIR="/home/s2907620/pigeonpea_project/svim/minimap/samtobam"
+TARGET_DIR="${BASE_DIR}/${GTYPE}"
+mkdir -p $TARGET_DIR
+
+#SAMTOOLS VARIABLES
+SAM="$IPATH"
+OUTBAM="${GTYPE}.bam"
+
+#RUNNING SAMTOBAM
+
+samtools view -bS $SAM -o $OUTBAM
+
+#sorting and indexing
+
+SORTED_BAM="${TARGET_DIR}/${GTYPE}_sorted.bam"
+samtools sort "$OUTBAM" -o "$SORTED_BAM"
+samtools index "$SORTED_BAM"
+
+########################################################################################################
+##svim
+########################################################################################################
+####SV finding using SVIM::: The same is for four genotypes
+
+#!/bin/bash
+#$ -N svim_3C                      # Job name
+#$ -l h_rt=04:00:00                # Runtime
+#$ -l h_vmem=66G                   # Memory per job
+#$ -pe sharedmem 12                # Number of cores
+#$ -P roslin_HighlanderLab         # Project name
+#$ -cwd                            # Run job from current directory
+#$ -j y                            # Join stdout and stderr
+#$ -o svim_3C.log # Log file
+
+# Initialise environment
+. /etc/profile.d/modules.sh
+module load miniforge
+
+conda activate /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/envs/svim_env
+
+
+svim alignment \
+/home/s2907620/pigeonpea_project/svim/svim/NSPP_3C/NSPP_3C \
+/home/s2907620/pigeonpea_project/svim/minimap/samtobam/NSPP_3C/NSPP_3C_filtered.bam \
+/home/s2907620/HighlanderLab/reference/reference_fixed_clean.fa
