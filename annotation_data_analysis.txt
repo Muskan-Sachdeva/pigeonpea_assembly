@@ -2,6 +2,8 @@
 
 ###extracting the ids which are unannotated in master file of NSPP_3C, and generating final master file with 100% annotation
 
+##Author:MUSKAN
+
 qlogin -l h_rt=08:00:00 -l h_rss=16G
 
 cd /exports/cmvm/eddie/eb/groups/HighlanderLab/visitors/Muskan/master_files/NSPP_50
