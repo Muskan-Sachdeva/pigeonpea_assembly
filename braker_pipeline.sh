@@ -1,6 +1,7 @@
 # Description:
 # This script runs BRAKER3 for protein-guided gene prediction on a
 # soft-masked plant genome using multiple legume protein datasets.
+#AUTHOR: MUSKAN
 #
 # Platform:
 #   - Eddie HPC (SGE scheduler)
