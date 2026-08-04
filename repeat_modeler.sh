@@ -1,7 +1,7 @@
 #!/bin/bash
 ###############################################################################
 # RepeatModeler De Novo Repeat Identification for Pigeonpea Genome
-#
+#Author: Muskan
 # Description:
 # This script runs RepeatModeler to identify de novo repetitive elements
 # in the NSPP_50 pigeonpea genome assembly. Two analyses are performed:
