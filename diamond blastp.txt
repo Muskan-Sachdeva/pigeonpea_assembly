@@ -1,3 +1,6 @@
+##DIAMOND BLASTP RUN
+##AUTHOR: MUSKAN
+
 diamond blastp \
   -d swissprot.dmnd \
   -q pigeonpea_proteins.fasta \
