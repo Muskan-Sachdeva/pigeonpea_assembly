@@ -1,6 +1,7 @@
 #!/bin/bash
 ###############################################################################
-# Script: sam_to_sorted_bam_NSPP_3C.sh
+#Author: Muskan
+#Script: sam_to_sorted_bam_NSPP_3C.sh
 # Purpose: Convert a SAM file to a sorted BAM file and index it using samtools
 # Platform: Grid Engine cluster#
 # Description:
